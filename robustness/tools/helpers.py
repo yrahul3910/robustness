@@ -4,9 +4,34 @@ import shutil
 import dill
 import os
 from subprocess import Popen, PIPE
+from raise_utils.transform import Transform
+import torch
+import numpy as np
 import pandas as pd
 from PIL import Image
 from . import constants
+
+def wfo(X, y, wfo_step):
+    X = X.detach().cpu().numpy()
+    y = y.detach().cpu().numpy()
+
+    fuzzed_x = []
+    fuzzed_y = []
+
+    for i in np.unique(y):
+        frac = sum(y == i) / len(y)
+        for x in X:
+            for j, r in enumerate(np.arange(0., 10 * wfo_step, wfo_step)):
+                for _ in range(int((1. / frac) / pow(2., j))):
+                    fuzzed_x.append([val - r for val in x])
+                    fuzzed_x.append([val + r for val in x])
+                    fuzzed_y.append(i)
+                    fuzzed_y.append(i)
+
+    X_fuzzed = np.concatenate((X, np.array(fuzzed_x)), axis=0)
+    y_fuzzed = np.concatenate((y, np.array(fuzzed_y)))
+
+    return torch.FloatTensor(X_fuzzed).cuda(), torch.LongTensor(y_fuzzed).cuda()
 
 def has_attr(obj, k):
     """Checks both that obj.k exists and is not equal to None"""
@@ -101,13 +126,14 @@ class InputNormalize(ch.nn.Module):
         return x_normalized
 
 class DataPrefetcher():
-    def __init__(self, loader, stop_after=None):
+    def __init__(self, loader, stop_after=None, wfo_step=0.01):
         self.loader = loader
         self.dataset = loader.dataset
         self.stream = ch.cuda.Stream()
         self.stop_after = stop_after
         self.next_input = None
         self.next_target = None
+        self.wfo_step = wfo_step
 
     def __len__(self):
         return len(self.loader)
@@ -133,6 +159,7 @@ class DataPrefetcher():
             target = self.next_target
             self.preload()
             count += 1
+            input, target = wfo(input, target, self.wfo_step)
             yield input, target
             if type(self.stop_after) is int and (count > self.stop_after):
                 break

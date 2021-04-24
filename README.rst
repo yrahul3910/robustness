@@ -33,6 +33,14 @@ reference. Functionality provided by the library includes:
    python -m robustness.main --dataset cifar --data /path/to/cifar \
       --adv-train 0 --arch resnet18 --out-dir /logs/checkpoints/dir/
 
+- **Weighted fuzzy oversampling:** The command below works on a K80 GPU (higher batch sizes can likely be used with more capable GPUs). It uses weighted fuzzy oversampling (see `the paper <https://arxiv.org/abs/2008.03835>`_ for details) on all the classes.
+
+.. code-block:: bash
+
+   python3 -m robustness.main --dataset cifar --adv-train 1 --eps 0.5 \
+      --attack-lr 0.1 --constraint 2 --arch resnet18 --out-dir logs/ \
+      --batch-size 4 --wfo-step 0.02
+
 - Performing `input manipulation
   <https://robustness.readthedocs.io/en/latest/example_usage/input_space_manipulation.html>`_ using robust (or standard)
   models---this includes making adversarial examples, inverting representations,
